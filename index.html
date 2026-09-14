@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📒 支出记账</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family: system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif; }
+  body { background:#f7f9fc; display:flex; justify-content:center; min-height:100vh; padding:2rem 1.5rem; }
+  .app { max-width:1000px; width:100%; background:#fff; border-radius:28px; box-shadow:0 10px 30px rgba(0,0,0,.03),0 1px 8px rgba(0,0,0,.02); padding:2rem 2rem 2.5rem; }
+
+  .header { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem; }
+  .header h1 { font-weight:450; font-size:1.9rem; letter-spacing:-.02em; color:#1e2b3c; }
+  .summary { display:flex; gap:2rem; background:#fafbfd; padding:1.2rem 1.8rem; border-radius:20px; border:1px solid #eef2f6; }
+  .summary-item { display:flex; flex-direction:column; }
+  .summary-label { font-size:.85rem; text-transform:uppercase; letter-spacing:.03em; color:#7f8c9b; font-weight:450; }
+  .summary-value { font-size:1.9rem; font-weight:400; color:#b14b4b; line-height:1.3; font-variant-numeric:tabular-nums; }
+
+  .mode-tabs { display:flex; gap:.5rem; margin:0 0 1.5rem; flex-wrap:wrap; align-items:center; }
+  .mode-tab { background:#f2f5f9; border:none; padding:.6rem 1.4rem; border-radius:40px; font-size:.9rem; color:#5f6f7e; cursor:pointer; transition:.15s; font-weight:450; }
+  .mode-tab.active { background:#1e2b3c; color:#fff; }
+  .mode-tab:hover:not(.active) { background:#e6ecf2; }
+  .sync-status { margin-left:auto; font-size:.8rem; color:#7f8c9b; padding:.4rem .9rem; background:#f2f5f9; border-radius:40px; }
+  .sync-status.online { color:#2b7e5c; background:#eef7f2; }
+  .sync-status.syncing { color:#b8860b; background:#fdf7e3; }
+  .sync-status.offline { color:#b14b4b; background:#fef5f5; }
+  .hidden { display:none !important; }
+
+  .add-section { margin:0 0 2rem; padding:1.5rem 1.8rem; background:#fafbfd; border-radius:22px; border:1px solid #eef2f6; }
+  .add-title { font-size:.9rem; font-weight:500; color:#4e5e6e; margin-bottom:1.2rem; letter-spacing:.02em; display:flex; align-items:center; gap:.4rem; }
+  .add-title::before { content:"+"; font-size:1.3rem; font-weight:350; color:#98a9b9; }
+
+  .form-grid { display:flex; flex-wrap:wrap; align-items:flex-end; gap:1rem 1.2rem; }
+  .field { display:flex; flex-direction:column; gap:.4rem; flex:1 0 150px; }
+  .field label { font-size:.75rem; font-weight:500; text-transform:uppercase; letter-spacing:.03em; color:#8a9aa8; }
+  .field label .optional { color:#b8c6d4; font-weight:400; text-transform:none; letter-spacing:0; margin-left:.2rem; }
+  .field input, .field select { padding:.7rem 1rem; border-radius:14px; border:1px solid #dee6ed; background:#fff; font-size:.95rem; color:#1e2b3c; outline:none; width:100%; transition:.15s; }
+  .field input:focus, .field select:focus { border-color:#b0c8dd; box-shadow:0 0 0 3px rgba(176,200,221,.2); }
+  .field select { cursor:pointer; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237f8c9b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 1rem center; background-size:14px; }
+  .field.hidden { display:none; }
+
+  .tag-input-wrap { display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; border:1px solid #dee6ed; border-radius:14px; padding:.4rem .6rem; background:#fff; min-height:46px; }
+  .tag-input-wrap:focus-within { border-color:#b0c8dd; box-shadow:0 0 0 3px rgba(176,200,221,.2); }
+  .tag-chip { background:#eef3f8; color:#4e5e6e; font-size:.8rem; padding:.25rem .6rem; border-radius:20px; display:inline-flex; align-items:center; gap:.3rem; }
+  .tag-chip .remove-tag { cursor:pointer; color:#98a9b9; font-size:.9rem; line-height:1; }
+  .tag-chip .remove-tag:hover { color:#b14b4b; }
+  .tag-input-wrap input { border:none !important; outline:none; flex:1; min-width:80px; padding:.3rem !important; box-shadow:none !important; background:transparent !important; }
+  .tag-hint { font-size:.7rem; color:#b8c6d4; margin-top:.2rem; }
+
+  .btn-add { background:#1e2b3c; border:none; color:#fff; padding:.7rem 2rem; border-radius:40px; font-size:.9rem; font-weight:450; cursor:pointer; transition:.15s; height:46px; display:inline-flex; align-items:center; justify-content:center; white-space:nowrap; flex:0 0 auto; }
+  .btn-add:hover { background:#2b3e52; transform:scale(.98); }
+  .btn-add:disabled { background:#b8c6d4; cursor:not-allowed; transform:none; }
+
+  .list-header { display:flex; justify-content:space-between; align-items:center; margin:0 0 1rem; flex-wrap:wrap; gap:.8rem; }
+  .list-header h2 { font-size:1.3rem; font-weight:400; color:#1e2b3c; }
+  .filter-row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+  .filter-row select, .filter-row input { padding:.5rem 1rem; border-radius:40px; border:1px solid #dee6ed; background:#fff; font-size:.85rem; color:#1e2b3c; outline:none; }
+  .filter-row select:focus, .filter-row input:focus { border-color:#b0c8dd; }
+
+  .data-actions { display:flex; gap:.4rem; align-items:center; }
+  .data-btn { background:#f2f5f9; border:1px solid #e6ecf2; color:#5f6f7e; font-size:.8rem; padding:.45rem .9rem; border-radius:40px; cursor:pointer; transition:.15s; white-space:nowrap; }
+  .data-btn:hover { background:#e6ecf2; color:#1e2b3c; }
+  .data-btn.primary { background:#1e2b3c; color:#fff; border-color:#1e2b3c; }
+  .data-btn.primary:hover { background:#2b3e52; }
+
+  .transaction-list { display:flex; flex-direction:column; gap:.6rem; }
+  .transaction-item { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.5rem; background:#fff; border:1px solid #edf2f7; border-radius:18px; transition:.1s; }
+  .transaction-item:hover { background:#fbfdff; border-color:#dde6ef; }
+  .tx-left { display:flex; align-items:center; gap:1.2rem; flex:1; flex-wrap:wrap; }
+  .tx-icon { font-size:1.5rem; width:2rem; text-align:center; flex-shrink:0; }
+  .tx-category { display:flex; flex-direction:column; min-width:130px; }
+  .tx-main-cat { font-size:.8rem; font-weight:500; color:#7f8c9b; text-transform:uppercase; letter-spacing:.02em; }
+  .tx-sub-cat { font-size:.95rem; font-weight:450; color:#1e2b3c; }
+  .tx-sub-cat .third { color:#8a9aa8; font-weight:400; }
+  .tx-desc { font-size:.95rem; color:#3f4e5e; }
+  .tx-tags { display:flex; gap:.3rem; flex-wrap:wrap; }
+  .tx-tag { font-size:.75rem; background:#f2f5f9; color:#5f6f7e; padding:.15rem .5rem; border-radius:20px; }
+  .tx-amount { font-size:1.15rem; font-weight:450; color:#b14b4b; font-variant-numeric:tabular-nums; }
+  .delete-btn { background:transparent; border:none; color:#b8c6d4; font-size:1.2rem; cursor:pointer; padding:.2rem .5rem; border-radius:30px; transition:.1s; margin-left:.8rem; }
+  .delete-btn:hover { color:#b14b4b; background:#fef5f5; }
+
+  .empty-state { text-align:center; padding:3rem 1rem; color:#98a9b9; font-size:.95rem; border:1px dashed #dee6ed; border-radius:24px; background:#fff; }
+
+  .report-section { padding:1.4rem 1.8rem; background:#fafbfd; border-radius:22px; border:1px solid #eef2f6; }
+  .report-controls { display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-end; margin-bottom:1.2rem; }
+  .report-controls .field { flex:1 0 200px; }
+
+  .report-summary { display:flex; gap:2rem; flex-wrap:wrap; padding:1rem 0 .6rem; border-bottom:1px solid #eef2f6; margin-bottom:1rem; }
+  .report-summary-item { display:flex; flex-direction:column; }
+  .report-summary-label { font-size:.8rem; color:#7f8c9b; }
+  .report-summary-value { font-size:1.6rem; font-weight:400; color:#1e2b3c; font-variant-numeric:tabular-nums; }
+  .report-summary-value.expense { color:#b14b4b; }
+
+  .cat-breakdown { display:flex; flex-direction:column; gap:.5rem; }
+  .cat-row { display:flex; align-items:center; gap:.8rem; font-size:.9rem; }
+  .cat-row .cat-name { width:110px; color:#3f4e5e; flex-shrink:0; }
+  .cat-row .cat-bar-wrap { flex:1; height:8px; background:#eef2f6; border-radius:40px; overflow:hidden; }
+  .cat-row .cat-bar { height:100%; background:#b0c8dd; border-radius:40px; transition:.3s; }
+  .cat-row .cat-amount { width:90px; text-align:right; color:#b14b4b; font-variant-numeric:tabular-nums; flex-shrink:0; }
+
+  .toast { position:fixed; bottom:2rem; left:50%; transform:translateX(-50%) translateY(20px); background:#1e2b3c; color:#fff; padding:.8rem 1.6rem; border-radius:40px; font-size:.9rem; opacity:0; pointer-events:none; transition:.3s; z-index:999; box-shadow:0 8px 24px rgba(0,0,0,.15); }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .modal-mask { position:fixed; inset:0; background:rgba(30,43,60,.4); display:flex; align-items:center; justify-content:center; z-index:1000; padding:1.5rem; }
+  .modal { background:#fff; border-radius:24px; padding:2rem; max-width:420px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,.15); }
+  .modal h3 { font-size:1.2rem; font-weight:450; color:#1e2b3c; margin-bottom:.8rem; }
+  .modal p { font-size:.85rem; color:#7f8c9b; line-height:1.7; margin-bottom:1.2rem; }
+  .modal input { width:100%; padding:.8rem 1rem; border-radius:14px; border:1px solid #dee6ed; font-size:.95rem; outline:none; margin-bottom:1rem; }
+  .modal input:focus { border-color:#b0c8dd; box-shadow:0 0 0 3px rgba(176,200,221,.2); }
+  .modal-btns { display:flex; gap:.6rem; justify-content:flex-end; }
+  .modal-btn { padding:.65rem 1.5rem; border-radius:40px; border:none; cursor:pointer; font-size:.9rem; transition:.15s; }
+  .modal-btn.primary { background:#1e2b3c; color:#fff; }
+  .modal-btn.primary:hover { background:#2b3e52; }
+  .modal-btn.ghost { background:#f2f5f9; color:#5f6f7e; }
+  .modal-btn.ghost:hover { background:#e6ecf2; }
+  .modal .hint { font-size:.75rem; color:#b8c6d4; margin-top:-.5rem; margin-bottom:1rem; }
+
+  @media (max-width:700px) {
+    .app { padding:1.5rem; }
+    .summary { flex-direction:column; gap:.8rem; width:100%; }
+    .form-grid, .report-controls { flex-direction:column; align-items:stretch; }
+    .btn-add { width:100%; }
+    .list-header { flex-direction:column; align-items:flex-start; }
+    .cat-row .cat-name { width:80px; font-size:.8rem; }
+    .tx-amount { font-size:1rem; }
+    .sync-status { margin-left:0; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>📒 支出记账</h1>
+    <div class="summary">
+      <div class="summary-item">
+        <span class="summary-label">总支出</span>
+        <span class="summary-value" id="totalExpense">¥0</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">记录笔数</span>
+        <span class="summary-value" id="totalCount" style="color:#1e2b3c;">0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="mode-tabs">
+    <button class="mode-tab active" data-mode="daily">📝 日常记录</button>
+    <button class="mode-tab" data-mode="month">📅 月度汇总</button>
+    <button class="mode-tab" data-mode="year">📆 年度汇总</button>
+    <span class="sync-status" id="syncStatus">未连接</span>
+  </div>
+
+  <div id="dailyPanel">
+    <div class="add-section">
+      <div class="add-title">记录一笔支出</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>一级分类 <span style="color:#b14b4b;">*</span></label>
+          <select id="mainCategorySelect"></select>
+        </div>
+        <div class="field">
+          <label>二级分类 <span class="optional">(可选)</span></label>
+          <select id="subCategorySelect"></select>
+        </div>
+        <div class="field hidden" id="thirdField">
+          <label>三级分类 <span class="optional">(可选)</span></label>
+          <select id="thirdCategorySelect"></select>
+        </div>
+        <div class="field">
+          <label>金额 <span style="color:#b14b4b;">*</span></label>
+          <input type="number" id="amountInput" placeholder="0.00" min="0.01" step="0.01">
+        </div>
+        <div class="field">
+          <label>备注 <span class="optional">(可选)</span></label>
+          <input type="text" id="descInput" placeholder="例如：午餐">
+        </div>
+        <div class="field" style="flex:1 0 100%;">
+          <label>标签 <span class="optional">(可选，回车或逗号添加)</span></label>
+          <div class="tag-input-wrap" id="tagInputWrap">
+            <input type="text" id="tagInput" placeholder="输入后按回车添加，如：报销、刚需">
+          </div>
+          <div class="tag-hint">多个标签用回车或逗号分隔</div>
+        </div>
+        <button class="btn-add" id="addBtn">添加</button>
+      </div>
+    </div>
+
+    <div class="list-header">
+      <h2>支出记录</h2>
+      <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
+        <div class="filter-row">
+          <select id="listTagFilter"><option value="">全部标签</option></select>
+          <input type="text" id="listSearch" placeholder="搜索备注…" style="width:140px;">
+        </div>
+        <div class="data-actions">
+          <button class="data-btn" id="exportBtn">📤 导出</button>
+          <button class="data-btn primary" id="importBtn">📥 导入</button>
+          <input type="file" id="importFile" accept=".json,application/json" style="display:none;">
+          <button class="data-btn" id="switchAccountBtn">🔑 换码</button>
+        </div>
+      </div>
+    </div>
+    <div class="transaction-list" id="transactionList"></div>
+  </div>
+
+  <div id="monthPanel" class="hidden">
+    <div class="report-section">
+      <div class="report-controls">
+        <div class="field">
+          <label>选择月份</label>
+          <input type="month" id="monthPicker">
+        </div>
+        <div class="field">
+          <label>标签筛选 <span class="optional">(可选)</span></label>
+          <select id="monthTagFilter"><option value="">全部标签</option></select>
+        </div>
+      </div>
+      <div class="report-summary">
+        <div class="report-summary-item">
+          <span class="report-summary-label">总支出</span>
+          <span class="report-summary-value expense" id="monthTotal">¥0</span>
+        </div>
+        <div class="report-summary-item">
+          <span class="report-summary-label">笔数</span>
+          <span class="report-summary-value" id="monthCount">0</span>
+        </div>
+        <div class="report-summary-item">
+          <span class="report-summary-label">日均</span>
+          <span class="report-summary-value" id="monthDaily">¥0</span>
+        </div>
+      </div>
+      <div class="cat-breakdown" id="monthBreakdown"></div>
+    </div>
+  </div>
+
+  <div id="yearPanel" class="hidden">
+    <div class="report-section">
+      <div class="report-controls">
+        <div class="field">
+          <label>选择年份</label>
+          <select id="yearPicker"></select>
+        </div>
+        <div class="field">
+          <label>标签筛选 <span class="optional">(可选)</span></label>
+          <select id="yearTagFilter"><option value="">全部标签</option></select>
+        </div>
+      </div>
+      <div class="report-summary">
+        <div class="report-summary-item">
+          <span class="report-summary-label">总支出</span>
+          <span class="report-summary-value expense" id="yearTotal">¥0</span>
+        </div>
+        <div class="report-summary-item">
+          <span class="report-summary-label">笔数</span>
+          <span class="report-summary-value" id="yearCount">0</span>
+        </div>
+        <div class="report-summary-item">
+          <span class="report-summary-label">日均</span>
+          <span class="report-summary-value" id="yearDaily">¥0</span>
+        </div>
+      </div>
+      <div class="cat-breakdown" id="yearBreakdown"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-mask hidden" id="loginModal">
+  <div class="modal">
+    <h3>🔑 输入同步码</h3>
+    <p>同步码相当于你的账号密码。所有设备输入同一个同步码，就能看到同一份记账记录。</p>
+    <input type="password" id="syncCodeInput" placeholder="例如：my-ledger-2026" autocomplete="off">
+    <div class="hint">⚠️ 请务必记住这个码，忘了将无法找回数据。</div>
+    <div class="modal-btns">
+      <button class="modal-btn ghost" id="cancelLogin">取消</button>
+      <button class="modal-btn primary" id="confirmLogin">连接</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  const SUPABASE_URL = 'https://jfkkqeiiupvpvarfsbxd.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_wTD1PzH3t1-jn1R0_CDLEw_3xBV2Eye';
+  const SYNC_CODE_KEY = 'expense_sync_code';
+  const CACHE_KEY = 'expense_cache';
+
+  let supabase = null;
+  let currentUserId = null;
+
+  const CATEGORIES = {
+    '餐饮':      { icon:'🍜', subs:{ '外食':[], '外卖':[], '咖啡':[], '奶茶':[] } },
+    '交通':      { icon:'🚗', subs:{ '火车':[], '机票':[], '打车':[], '船票':[] } },
+    '住房':      { icon:'🏠', subs:{ '家具':[] } },
+    '购物':      { icon:'🛒', subs:{ '服饰鞋帽':[], '日用百货':[], '数码电子':[], '美妆护肤':[] } },
+    '旅行':      { icon:'✈️', subs:{ '住宿':[], '交通':['机票','火车'], '酒店':[], '门票':[], '旅途餐饮':[], '纪念品':[] } },
+    '休闲娱乐':  { icon:'🎬', subs:{ '电影':[], 'live':[], '演唱会':[], '会员订阅':[] } },
+    '医疗健康':  { icon:'💊', subs:{ '门诊':[], '保健品':[] } },
+    '人情社交':  { icon:'🎁', subs:{ '礼金红包':[], '请客聚餐':[], '礼物礼品':[] } },
+    '学习教育':  { icon:'📚', subs:{ '课程培训':[], '书籍文具':[], '考试报名费':[] } },
+    '通讯':      { icon:'📱', subs:{ '手机话费':[] } },
+    '保险':      { icon:'🛡️', subs:{ '旅行险':[], '重疾险':[], '意外险':[] } }
+  };
+  const CUSTOM_VALUE = '__custom__';
+
+  let transactions = [];
+  let pendingTags = [];
+  let allTags = new Set();
+
+  const $ = id => document.getElementById(id);
+  const mainSelect = $('mainCategorySelect'), subSelect = $('subCategorySelect'), thirdSelect = $('thirdCategorySelect'), thirdField = $('thirdField');
+  const amountInput = $('amountInput'), descInput = $('descInput'), tagInput = $('tagInput'), tagInputWrap = $('tagInputWrap');
+  const addBtn = $('addBtn'), transactionList = $('transactionList'), totalExpenseEl = $('totalExpense'), totalCountEl = $('totalCount');
+  const listTagFilter = $('listTagFilter'), listSearch = $('listSearch');
+  const exportBtn = $('exportBtn'), importBtn = $('importBtn'), importFile = $('importFile'), switchAccountBtn = $('switchAccountBtn');
+  const toastEl = $('toast'), syncStatus = $('syncStatus');
+  const loginModal = $('loginModal'), syncCodeInput = $('syncCodeInput'), confirmLogin = $('confirmLogin'), cancelLogin = $('cancelLogin');
+  const modeTabs = document.querySelectorAll('.mode-tab');
+  const dailyPanel = $('dailyPanel'), monthPanel = $('monthPanel'), yearPanel = $('yearPanel');
+  const monthPicker = $('monthPicker'), monthTagFilter = $('monthTagFilter');
+  const monthTotal = $('monthTotal'), monthCount = $('monthCount'), monthDaily = $('monthDaily'), monthBreakdown = $('monthBreakdown');
+  const yearPicker = $('yearPicker'), yearTagFilter = $('yearTagFilter');
+  const yearTotal = $('yearTotal'), yearCount = $('yearCount'), yearDaily = $('yearDaily'), yearBreakdown = $('yearBreakdown');
+
+  function formatMoney(v) { return '¥' + Number(v).toFixed(2); }
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastEl._t);
+    toastEl._t = setTimeout(() => toastEl.classList.remove('show'), 2200);
+  }
+  function setSyncStatus(text, cls) {
+    syncStatus.textContent = text;
+    syncStatus.className = 'sync-status' + (cls ? ' ' + cls : '');
+  }
+
+  function cacheTransactions() { try { localStorage.setItem(CACHE_KEY, JSON.stringify(transactions)); } catch(e){} }
+  function loadCache() {
+    try { const s = localStorage.getItem(CACHE_KEY); if (s) transactions = JSON.parse(s) || []; } catch(e) { transactions = []; }
+    if (!Array.isArray(transactions)) transactions = [];
+    rebuildTags();
+  }
+  function rebuildTags() {
+    allTags.clear();
+    transactions.forEach(t => (t.tags||[]).forEach(tag => allTags.add(tag)));
+  }
+
+  function rowToTx(row) {
+    return {
+      id: row.id,
+      mainCat: row.main_cat,
+      subCat: row.sub_cat || '',
+      thirdCat: row.third_cat || '',
+      amount: Number(row.amount),
+      desc: row.desc_text || '',
+      tags: row.tags || [],
+      date: row.created_at
+    };
+  }
+
+  function codeToCredentials(code) {
+    let h = 0;
+    for (let i = 0; i < code.length; i++) h = (h * 31 + code.charCodeAt(i)) >>> 0;
+    return { email: `u${h.toString(36)}@example.com`, password: 'pwd_' + h.toString(36) + '_' + code.length };
+  }
+
+  async function signInWithCode(code) {
+    const { email, password } = codeToCredentials(code);
+    let { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error && /Invalid login/i.test(error.message)) {
+      const r = await supabase.auth.signUp({ email, password });
+      if (r.error) throw r.error;
+      data = r.data;
+    } else if (error) throw error;
+    if (!data.user) throw new Error('登录失败');
+    currentUserId = data.user.id;
+    localStorage.setItem(SYNC_CODE_KEY, code);
+  }
+
+  async function pullFromCloud() {
+    setSyncStatus('同步中…', 'syncing');
+    const { data, error } = await supabase.from('expenses').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    transactions = (data || []).map(rowToTx);
+    rebuildTags();
+    cacheTransactions();
+    setSyncStatus('已同步', 'online');
+    renderAll();
+  }
+
+  async function addToCloud(tx) {
+    const row = {
+      user_id: currentUserId,
+      amount: tx.amount,
+      main_cat: tx.mainCat,
+      sub_cat: tx.subCat || null,
+      third_cat: tx.thirdCat || null,
+      desc_text: tx.desc || null,
+      tags: tx.tags || []
+    };
+    const { data, error } = await supabase.from('expenses').insert(row).select().single();
+    if (error) throw error;
+    return rowToTx(data);
+  }
+
+  async function deleteFromCloud(id) {
+    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    if (error) throw error;
+  }
+
+  // ============ 导出/导入 ============
+  function exportJSON() {
+    const data = { app:'支出记账', version:2, exportedAt:new Date().toISOString(), count:transactions.length, transactions };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const d = new Date();
+    const stamp = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
+    a.href = url; a.download = `支出记账_${stamp}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`已导出 ${transactions.length} 条`);
+  }
+
+  function importJSON(file) {
+    const reader = new FileReader();
+    reader.onload = async e => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        let list = Array.isArray(parsed) ? parsed : (parsed.transactions || []);
+        if (!list.length) { showToast('文件中没有记录'); return; }
+        const cleaned = list.map(t => ({
+          mainCat: t.mainCat || '其他',
+          subCat: t.subCat || '',
+          thirdCat: t.thirdCat || '',
+          amount: Number(t.amount) || 0,
+          desc: t.desc || '',
+          tags: Array.isArray(t.tags) ? t.tags : []
+        })).filter(t => t.amount > 0);
+        if (!cleaned.length) { showToast('文件中没有有效记录'); return; }
+
+        const overwrite = confirm(`成功读取 ${cleaned.length} 条。\n\n点「确定」= 追加导入（保留现有）\n点「取消」= 覆盖导入（清空现有）`);
+        setSyncStatus('导入中…', 'syncing');
+        if (!overwrite) {
+          const { error: delErr } = await supabase.from('expenses').delete().eq('user_id', currentUserId);
+          if (delErr) throw delErr;
+        }
+        const rows = cleaned.map(t => ({
+          user_id: currentUserId,
+          amount: t.amount,
+          main_cat: t.mainCat,
+          sub_cat: t.subCat || null,
+          third_cat: t.thirdCat || null,
+          desc_text: t.desc || null,
+          tags: t.tags || []
+        }));
+        const { error: insErr } = await supabase.from('expenses').insert(rows);
+        if (insErr) throw insErr;
+        await pullFromCloud();
+        showToast(`导入完成：${cleaned.length} 条`);
+      } catch (err) {
+        console.error(err);
+        showToast('导入失败：' + (err.message || '未知错误'));
+        setSyncStatus('同步失败', 'offline');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  exportBtn.addEventListener('click', exportJSON);
+  importBtn.addEventListener('click', () => importFile.click());
+  importFile.addEventListener('change', e => { const f = e.target.files[0]; if (f) importJSON(f); importFile.value = ''; });
+
+  // ============ 分类下拉 ============
+  function getSubsOf(m) { return CATEGORIES[m]?.subs ? Object.keys(CATEGORIES[m].subs) : []; }
+  function getThirdsOf(m, s) { return CATEGORIES[m]?.subs?.[s] || []; }
+
+  function renderMainOptions() {
+    mainSelect.innerHTML = '';
+    Object.keys(CATEGORIES).forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = `${CATEGORIES[cat].icon} ${cat}`;
+      mainSelect.appendChild(opt);
+    });
+    const customOpt = document.createElement('option');
+    customOpt.value = CUSTOM_VALUE; customOpt.textContent = '➕ 自定义一级分类';
+    mainSelect.appendChild(customOpt);
+  }
+
+  function renderSubOptions(mainCat) {
+    subSelect.innerHTML = '';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = ''; noneOpt.textContent = '（不选二级）';
+    subSelect.appendChild(noneOpt);
+    getSubsOf(mainCat).forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      subSelect.appendChild(opt);
+    });
+    const customOpt = document.createElement('option');
+    customOpt.value = CUSTOM_VALUE; customOpt.textContent = '➕ 自定义二级分类';
+    subSelect.appendChild(customOpt);
+    subSelect.value = '';
+    updateThirdVisibility();
+  }
+
+  function renderThirdOptions(mainCat, subCat) {
+    thirdSelect.innerHTML = '';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = ''; noneOpt.textContent = '（不选三级）';
+    thirdSelect.appendChild(noneOpt);
+    getThirdsOf(mainCat, subCat).forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t; opt.textContent = t;
+      thirdSelect.appendChild(opt);
+    });
+    const customOpt = document.createElement('option');
+    customOpt.value = CUSTOM_VALUE; customOpt.textContent = '➕ 自定义三级分类';
+    thirdSelect.appendChild(customOpt);
+  }
+
+  function updateThirdVisibility() {
+    const mainCat = mainSelect.value, subCat = subSelect.value;
+    if (!mainCat || mainCat === CUSTOM_VALUE || !subCat || subCat === CUSTOM_VALUE) {
+      thirdField.classList.add('hidden'); return;
+    }
+    if (getThirdsOf(mainCat, subCat).length > 0) {
+      thirdField.classList.remove('hidden');
+      renderThirdOptions(mainCat, subCat);
+    } else {
+      thirdField.classList.add('hidden');
+    }
+  }
+
+  function promptCustom(label) {
+    const val = prompt(`请输入${label}名称：`);
+    if (val && val.trim()) return val.trim();
+    return null;
+  }
+
+  mainSelect.addEventListener('change', () => {
+    let mainCat = mainSelect.value;
+    if (mainCat === CUSTOM_VALUE) {
+      const custom = promptCustom('一级分类');
+      if (custom) {
+        if (!CATEGORIES[custom]) CATEGORIES[custom] = { icon:'🏷️', subs:{} };
+        renderMainOptions();
+        mainSelect.value = custom; mainCat = custom;
+      } else {
+        mainSelect.value = Object.keys(CATEGORIES)[0];
+        mainCat = mainSelect.value;
+      }
+    }
+    renderSubOptions(mainCat);
+  });
+
+  subSelect.addEventListener('change', () => {
+    let mainCat = mainSelect.value, subCat = subSelect.value;
+    if (subCat === CUSTOM_VALUE) {
+      const custom = promptCustom('二级分类');
+      if (custom) {
+        if (!CATEGORIES[mainCat].subs[custom]) CATEGORIES[mainCat].subs[custom] = [];
+        renderSubOptions(mainCat);
+        subSelect.value = custom; subCat = custom;
+      } else { subSelect.value = ''; subCat = ''; }
+    }
+    updateThirdVisibility();
+  });
+
+  thirdSelect.addEventListener('change', () => {
+    if (thirdSelect.value === CUSTOM_VALUE) {
+      const mainCat = mainSelect.value, subCat = subSelect.value;
+      const custom = promptCustom('三级分类');
+      if (custom) {
+        const arr = CATEGORIES[mainCat].subs[subCat] || [];
+        if (!arr.includes(custom)) arr.push(custom);
+        CATEGORIES[mainCat].subs[subCat] = arr;
+        renderThirdOptions(mainCat, subCat);
+        thirdSelect.value = custom;
+      } else thirdSelect.value = '';
+    }
+  });
+
+  // ============ 标签输入 ============
+  function renderPendingTags() {
+    tagInputWrap.querySelectorAll('.tag-chip').forEach(el => el.remove());
+    pendingTags.forEach((tag, idx) => {
+      const chip = document.createElement('span');
+      chip.className = 'tag-chip';
+      chip.innerHTML = `${tag} <span class="remove-tag" data-idx="${idx}">×</span>`;
+      tagInputWrap.insertBefore(chip, tagInput);
+    });
+    tagInputWrap.querySelectorAll('.remove-tag').forEach(el => {
+      el.addEventListener('click', () => {
+        pendingTags.splice(Number(el.dataset.idx), 1);
+        renderPendingTags();
+      });
+    });
+  }
+
+  function commitTag(raw) {
+    const parts = raw.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+    parts.forEach(p => { if (!pendingTags.includes(p)) pendingTags.push(p); });
+    renderPendingTags();
+  }
+
+  tagInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ',' || e.key === '，') {
+      e.preventDefault();
+      if (tagInput.value.trim()) { commitTag(tagInput.value); tagInput.value = ''; }
+    } else if (e.key === 'Backspace' && tagInput.value === '' && pendingTags.length > 0) {
+      pendingTags.pop(); renderPendingTags();
+    }
+  });
+
+  // ============ 添加 ============
+  async function addTransaction() {
+    const mainCat = mainSelect.value;
+    const subCat = subSelect.value === '' ? '' : subSelect.value;
+    const thirdCat = thirdSelect.value === '' ? '' : thirdSelect.value;
+    const amountRaw = amountInput.value.trim();
+    const desc = descInput.value.trim();
+    if (tagInput.value.trim()) { commitTag(tagInput.value); tagInput.value = ''; }
+
+    if (!mainCat || mainCat === CUSTOM_VALUE) { alert('请选择一级分类'); return; }
+    if (!amountRaw) { alert('请输入金额'); return; }
+    const amount = parseFloat(amountRaw);
+    if (isNaN(amount) || amount <= 0) { alert('金额必须是大于0的数字'); return; }
+
+    const tx = {
+      mainCat,
+      subCat: subCat === CUSTOM_VALUE ? '' : subCat,
+      thirdCat: thirdCat === CUSTOM_VALUE ? '' : thirdCat,
+      amount,
+      desc: desc || '',
+      tags: [...pendingTags],
+      date: new Date().toISOString()
+    };
+
+    addBtn.disabled = true;
+    try {
+      const saved = await addToCloud(tx);
+      transactions.unshift(saved);
+      rebuildTags();
+      cacheTransactions();
+      amountInput.value = '';
+      descInput.value = '';
+      pendingTags = [];
+      renderPendingTags();
+      renderAll();
+      showToast('已添加');
+    } catch (err) {
+      console.error(err);
+      showToast('添加失败：' + (err.message || '网络错误'));
+    } finally {
+      addBtn.disabled = false;
+    }
+  }
+
+  addBtn.addEventListener('click', addTransaction);
+  amountInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addTransaction(); } });
+  descInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addTransaction(); } });
+
+  // ============ 列表 ============
+  function getFiltered() {
+    const tf = listTagFilter.value;
+    const kw = listSearch.value.trim().toLowerCase();
+    return transactions.filter(t => {
+      if (tf && !(t.tags||[]).includes(tf)) return false;
+      if (kw) {
+        const hay = `${t.desc||''} ${t.mainCat} ${t.subCat||''} ${t.thirdCat||''} ${(t.tags||[]).join(' ')}`.toLowerCase();
+        if (!hay.includes(kw)) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderList() {
+    const list = getFiltered();
+    if (list.length === 0) {
+      transactionList.innerHTML = `<div class="empty-state">没有匹配的支出记录 ✨</div>`;
+      return;
+    }
+    transactionList.innerHTML = list.map(tx => {
+      const icon = CATEGORIES[tx.mainCat]?.icon || '🏷️';
+      const subText = tx.subCat || '';
+      const thirdText = tx.thirdCat ? ` <span class="third">› ${tx.thirdCat}</span>` : '';
+      const tagsHtml = (tx.tags && tx.tags.length) ? `<div class="tx-tags">${tx.tags.map(t => `<span class="tx-tag">${t}</span>`).join('')}</div>` : '';
+      return `
+        <div class="transaction-item" data-id="${tx.id}">
+          <div class="tx-left">
+            <div class="tx-icon">${icon}</div>
+            <div class="tx-category">
+              <span class="tx-main-cat">${tx.mainCat}</span>
+              <span class="tx-sub-cat">${subText}${thirdText}</span>
+            </div>
+            <div class="tx-desc">${tx.desc || '—'}</div>
+            ${tagsHtml}
+          </div>
+          <div style="display:flex;align-items:center;">
+            <span class="tx-amount">${formatMoney(tx.amount)}</span>
+            <button class="delete-btn" data-id="${tx.id}" title="删除">×</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const id = Number(btn.dataset.id);
+        btn.disabled = true;
+        try {
+          await deleteFromCloud(id);
+          transactions = transactions.filter(t => t.id !== id);
+          rebuildTags();
+          cacheTransactions();
+          renderAll();
+          showToast('已删除');
+        } catch (err) {
+          console.error(err);
+          showToast('删除失败：' + (err.message || '网络错误'));
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  listSearch.addEventListener('input', renderList);
+  listTagFilter.addEventListener('change', renderList);
+
+  function refreshTagFilters() {
+    const opts = '<option value="">全部标签</option>' + [...allTags].sort().map(t => `<option value="${t}">${t}</option>`).join('');
+    listTagFilter.innerHTML = opts;
+    monthTagFilter.innerHTML = opts;
+    yearTagFilter.innerHTML = opts;
+  }
+
+  // ============ 汇总 ============
+  function renderBreakdown(container, list) {
+    const byCat = {};
+    list.forEach(t => { byCat[t.mainCat] = (byCat[t.mainCat]||0) + t.amount; });
+    const entries = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+    if (entries.length === 0) {
+      container.innerHTML = `<div style="color:#98a9b9;font-size:.85rem;padding:.5rem 0;">暂无数据</div>`;
+      return;
+    }
+    const max = entries[0][1];
+    container.innerHTML = entries.map(([cat, amt]) => {
+      const icon = CATEGORIES[cat]?.icon || '🏷️';
+      const pct = (amt / max * 100).toFixed(0);
+      return `<div class="cat-row"><span class="cat-name">${icon} ${cat}</span><span class="cat-bar-wrap"><span class="cat-bar" style="width:${pct}%"></span></span><span class="cat-amount">${formatMoney(amt)}</span></div>`;
+    }).join('');
+  }
+
+  function renderMonthReport() {
+    const ym = monthPicker.value, tf = monthTagFilter.value;
+    let list = transactions;
+    if (ym) list = list.filter(t => (t.date||'').startsWith(ym));
+    if (tf) list = list.filter(t => (t.tags||[]).includes(tf));
+    const total = list.reduce((s,t)=>s+t.amount,0), count = list.length;
+    let daily = 0;
+    if (ym) { const [y,m] = ym.split('-').map(Number); daily = total / new Date(y,m,0).getDate(); }
+    monthTotal.textContent = formatMoney(total);
+    monthCount.textContent = count;
+    monthDaily.textContent = formatMoney(daily);
+    renderBreakdown(monthBreakdown, list);
+  }
+
+  function renderYearReport() {
+    const y = yearPicker.value, tf = yearTagFilter.value;
+    let list = transactions;
+    if (y) list = list.filter(t => (t.date||'').startsWith(y));
+    if (tf) list = list.filter(t => (t.tags||[]).includes(tf));
+    const total = list.reduce((s,t)=>s+t.amount,0), count = list.length;
+    let daily = 0;
+    if (y) { const yy = Number(y); const isLeap = (yy%4===0&&yy%100!==0)||yy%400===0; daily = total/(isLeap?366:365); }
+    yearTotal.textContent = formatMoney(total);
+    yearCount.textContent = count;
+    yearDaily.textContent = formatMoney(daily);
+    renderBreakdown(yearBreakdown, list);
+  }
+
+  monthPicker.addEventListener('change', renderMonthReport);
+  monthTagFilter.addEventListener('change', renderMonthReport);
+  yearPicker.addEventListener('change', renderYearReport);
+  yearTagFilter.addEventListener('change', renderYearReport);
+
+  modeTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      modeTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const mode = tab.dataset.mode;
+      dailyPanel.classList.add('hidden');
+      monthPanel.classList.add('hidden');
+      yearPanel.classList.add('hidden');
+      if (mode === 'daily') dailyPanel.classList.remove('hidden');
+      else if (mode === 'month') { monthPanel.classList.remove('hidden'); renderMonthReport(); }
+      else { yearPanel.classList.remove('hidden'); renderYearReport(); }
+    });
+  });
+
+  // ============ 统一渲染 ============
+  function renderAll() {
+    const total = transactions.reduce((s,t)=>s+t.amount,0);
+    totalExpenseEl.textContent = formatMoney(total);
+    totalCountEl.textContent = transactions.length;
+    refreshTagFilters();
+    renderList();
+    renderMonthReport();
+    renderYearReport();
+  }
+
+  // ============ 登录弹窗 ============
+  function openLoginModal() {
+    syncCodeInput.value = '';
+    loginModal.classList.remove('hidden');
+    setTimeout(() => syncCodeInput.focus(), 100);
+  }
+  function closeLoginModal() { loginModal.classList.add('hidden'); }
+
+  cancelLogin.addEventListener('click', () => {
+    closeLoginModal();
+    setSyncStatus('未连接（离线）', 'offline');
+    // 用本地缓存显示
+    loadCache();
+    renderAll();
+  });
+
+  confirmLogin.addEventListener('click', async () => {
+    const code = syncCodeInput.value.trim();
+    if (!code || code.length < 4) { showToast('同步码至少 4 位'); return; }
+    confirmLogin.disabled = true;
+    confirmLogin.textContent = '连接中…';
+    try {
+      await signInWithCode(code);
+      closeLoginModal();
+      await pullFromCloud();
+      showToast('已连接云端 ✅');
+    } catch (err) {
+      console.error(err);
+      showToast('连接失败：' + (err.message || '请检查同步码'));
+    } finally {
+      confirmLogin.disabled = false;
+      confirmLogin.textContent = '连接';
+    }
+  });
+
+  syncCodeInput.addEventListener('keypress', e => {
+    if (e.key === 'Enter') { e.preventDefault(); confirmLogin.click(); }
+  });
+
+  switchAccountBtn.addEventListener('click', async () => {
+    if (!confirm('换码后当前设备会退出登录，云端数据不会丢。确定吗？')) return;
+    localStorage.removeItem(SYNC_CODE_KEY);
+    try { await supabase.auth.signOut(); } catch(e) {}
+    currentUserId = null;
+    transactions = [];
+    setSyncStatus('未连接', '');
+    openLoginModal();
+  });
+
+  // ============ 初始化 ============
+  async function init() {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // 先渲染分类下拉
+    renderMainOptions();
+    mainSelect.value = Object.keys(CATEGORIES)[0];
+    renderSubOptions(mainSelect.value);
+    updateThirdVisibility();
+    renderPendingTags();
+
+    // 月份/年份默认值
+    const now = new Date();
+    monthPicker.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    yearPicker.innerHTML = `<option value="${now.getFullYear()}">${now.getFullYear()} 年</option>`;
+    yearPicker.value = String(now.getFullYear());
+
+    // 先显示本地缓存，避免白屏
+    loadCache();
+    renderAll();
+
+    // 检查是否有已保存的同步码
+    const savedCode = localStorage.getItem(SYNC_CODE_KEY);
+    if (savedCode) {
+      setSyncStatus('连接中…', 'syncing');
+      try {
+        await signInWithCode(savedCode);
+        await pullFromCloud();
+        return;
+      } catch (err) {
+        console.error('自动登录失败', err);
+        setSyncStatus('自动登录失败', 'offline');
+      }
+    }
+    // 没有同步码 → 弹窗
+    openLoginModal();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
