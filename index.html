@@ -172,7 +172,6 @@
         <div class="field" style="position:relative;">
           <label>金额 <span style="color:#b14b4b;">*</span></label>
           <input type="text" id="amountInput" placeholder="如 12+8-5" autocomplete="off">
-          <div class="calc-preview" id="calcPreview"></div>
 
           <div class="calc-popup" id="calcPopup">
             <div class="calc-display">
@@ -373,7 +372,15 @@
     try { const val = Function('"use strict";return (' + s + ')')(); if (typeof val === 'number' && isFinite(val)) return val; return null; } catch (e) { return null; }
   }
   function updateCalcPreview() { const val = evaluateExpr(amountInput.value); calcPreview.textContent = (val === null || amountInput.value.trim() === '') ? '' : '= ' + formatMoney(val); }
-  amountInput.addEventListener('input', updateCalcPreview);
+    // 失焦时自动计算并替换成结果
+  amountInput.addEventListener('blur', () => {
+    const raw = amountInput.value.trim();
+    if (raw === '') return;
+    const val = evaluateExpr(raw);
+    if (val !== null && val > 0) {
+      amountInput.value = val;   // 直接显示结果数字
+    }
+  });
   function updateEditCalcPreview() { const val = evaluateExpr(editAmount.value); editCalcPreview.textContent = (val === null || editAmount.value.trim() === '') ? '' : '= ' + formatMoney(val); }
   editAmount.addEventListener('input', updateEditCalcPreview);
 
