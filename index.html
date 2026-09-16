@@ -34,7 +34,6 @@
   .field input:focus, .field select:focus { border-color:#b0c8dd; box-shadow:0 0 0 3px rgba(176,200,221,.2); }
   .field select { cursor:pointer; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237f8c9b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 1rem center; background-size:14px; }
   .field.hidden { display:none; }
-  .calc-preview { font-size:.75rem; color:#2b7e5c; margin-top:.25rem; min-height:1em; font-weight:500; }
   .tag-input-wrap { display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; border:1px solid #dee6ed; border-radius:14px; padding:.4rem .6rem; background:#fff; min-height:46px; }
   .tag-input-wrap:focus-within { border-color:#b0c8dd; box-shadow:0 0 0 3px rgba(176,200,221,.2); }
   .tag-chip { background:#eef3f8; color:#4e5e6e; font-size:.8rem; padding:.25rem .6rem; border-radius:20px; display:inline-flex; align-items:center; gap:.3rem; }
@@ -172,7 +171,6 @@
         <div class="field" style="position:relative;">
           <label>金额 <span style="color:#b14b4b;">*</span></label>
           <input type="text" id="amountInput" placeholder="如 12+8-5" autocomplete="off">
-
           <div class="calc-popup" id="calcPopup">
             <div class="calc-display">
               <div class="calc-expr" id="calcExpr">0</div>
@@ -293,7 +291,6 @@
     <select id="editThird"></select>
     <label class="field-label">金额</label>
     <input type="text" id="editAmount" placeholder="如 12+8-5" autocomplete="off">
-    <div class="calc-preview" id="editCalcPreview"></div>
     <label class="field-label">备注</label>
     <input type="text" id="editDesc" placeholder="备注">
     <label class="field-label">标签（逗号分隔）</label>
@@ -339,14 +336,13 @@
   const $ = id => document.getElementById(id);
   const mainSelect = $('mainCategorySelect'), subSelect = $('subCategorySelect'), thirdSelect = $('thirdCategorySelect'), thirdField = $('thirdField');
   const amountInput = $('amountInput'), descInput = $('descInput'), tagInput = $('tagInput'), tagInputWrap = $('tagInputWrap');
-  const calcPreview = $('calcPreview');
   const addBtn = $('addBtn'), transactionList = $('transactionList'), totalExpenseEl = $('totalExpense'), totalCountEl = $('totalCount');
   const listTagFilter = $('listTagFilter'), listSearch = $('listSearch');
   const exportBtn = $('exportBtn'), importBtn = $('importBtn'), importFile = $('importFile'), switchAccountBtn = $('switchAccountBtn');
   const toastEl = $('toast'), syncStatus = $('syncStatus');
   const loginModal = $('loginModal'), syncCodeInput = $('syncCodeInput'), confirmLogin = $('confirmLogin'), cancelLogin = $('cancelLogin');
   const editModal = $('editModal'), editMain = $('editMain'), editSub = $('editSub'), editThird = $('editThird');
-  const editAmount = $('editAmount'), editCalcPreview = $('editCalcPreview'), editDesc = $('editDesc'), editTags = $('editTags');
+  const editAmount = $('editAmount'), editDesc = $('editDesc'), editTags = $('editTags');
   const cancelEdit = $('cancelEdit'), saveEdit = $('saveEdit');
   const modeTabs = document.querySelectorAll('.mode-tab');
   const dailyPanel = $('dailyPanel'), monthPanel = $('monthPanel'), yearPanel = $('yearPanel');
@@ -371,18 +367,20 @@
     if (!/^[-+*/().\d]+$/.test(s)) return null;
     try { const val = Function('"use strict";return (' + s + ')')(); if (typeof val === 'number' && isFinite(val)) return val; return null; } catch (e) { return null; }
   }
-  function updateCalcPreview() { const val = evaluateExpr(amountInput.value); calcPreview.textContent = (val === null || amountInput.value.trim() === '') ? '' : '= ' + formatMoney(val); }
-    // 失焦时自动计算并替换成结果
+
+  // 金额框失焦 → 自动算成结果
   amountInput.addEventListener('blur', () => {
     const raw = amountInput.value.trim();
     if (raw === '') return;
     const val = evaluateExpr(raw);
-    if (val !== null && val > 0) {
-      amountInput.value = val;   // 直接显示结果数字
-    }
+    if (val !== null && val > 0) amountInput.value = val;
   });
-  function updateEditCalcPreview() { const val = evaluateExpr(editAmount.value); editCalcPreview.textContent = (val === null || editAmount.value.trim() === '') ? '' : '= ' + formatMoney(val); }
-  editAmount.addEventListener('input', updateEditCalcPreview);
+  editAmount.addEventListener('blur', () => {
+    const raw = editAmount.value.trim();
+    if (raw === '') return;
+    const val = evaluateExpr(raw);
+    if (val !== null && val > 0) editAmount.value = val;
+  });
 
   function cacheTransactions() { try { localStorage.setItem(CACHE_KEY, JSON.stringify(transactions)); } catch(e){} }
   function loadCache() { try { const s = localStorage.getItem(CACHE_KEY); if (s) transactions = JSON.parse(s) || []; } catch(e) { transactions = []; } if (!Array.isArray(transactions)) transactions = []; rebuildTags(); }
@@ -431,7 +429,7 @@
   }
 
   function exportJSON() {
-    const data = { app:'支出记账', version:5, exportedAt:new Date().toISOString(), count:transactions.length, transactions };
+    const data = { app:'支出记账', version:6, exportedAt:new Date().toISOString(), count:transactions.length, transactions };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -470,7 +468,6 @@
   function getSubsOf(m) { return CATEGORIES[m]?.subs ? Object.keys(CATEGORIES[m].subs) : []; }
   function getThirdsOf(m, s) { return CATEGORIES[m]?.subs?.[s] || []; }
 
-  // ====== 新增表单的下拉 ======
   function renderMainOptions() {
     mainSelect.innerHTML = '';
     Object.keys(CATEGORIES).forEach(cat => {
@@ -533,7 +530,6 @@
     }
   });
 
-  // ====== 编辑弹窗的下拉 ======
   function renderEditMainOptions(selected) {
     editMain.innerHTML = '';
     Object.keys(CATEGORIES).forEach(cat => {
@@ -567,7 +563,6 @@
     editThird.appendChild(customOpt);
     editThird.value = selected || '';
   }
-
   editMain.addEventListener('change', () => {
     let mainCat = editMain.value;
     if (mainCat === CUSTOM_VALUE) {
@@ -586,7 +581,6 @@
     renderEditSubOptions(mainCat, '');
     renderEditThirdOptions(mainCat, '', '');
   });
-
   editSub.addEventListener('change', () => {
     const mainCat = editMain.value;
     let subCat = editSub.value;
@@ -604,7 +598,6 @@
     }
     renderEditThirdOptions(mainCat, subCat === CUSTOM_VALUE ? '' : subCat, '');
   });
-
   editThird.addEventListener('change', () => {
     const mainCat = editMain.value;
     const subCat = editSub.value;
@@ -664,13 +657,13 @@
     try {
       const saved = await addToCloud(tx);
       transactions.unshift(saved); rebuildTags(); cacheTransactions();
-      amountInput.value = ''; descInput.value = ''; calcPreview.textContent = '';
+      amountInput.value = ''; descInput.value = '';
       pendingTags = []; renderPendingTags(); renderAll(); showToast('已添加');
     } catch (err) { console.error(err); showToast('添加失败：' + (err.message || '网络错误')); }
     finally { addBtn.disabled = false; }
   }
   addBtn.addEventListener('click', addTransaction);
-  amountInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addTransaction(); } });
+  amountInput.addEventListener('keypress', e => { if (e.key === 'Enter' && !calcPopup.classList.contains('show')) { e.preventDefault(); addTransaction(); } });
   descInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addTransaction(); } });
 
   function getFiltered() {
@@ -775,7 +768,6 @@
     refreshTagFilters(); renderList(); renderMonthReport(); renderYearReport();
   }
 
-  // ====== 编辑弹窗打开 ======
   function openEdit(id) {
     const tx = transactions.find(t => t.id === id);
     if (!tx) return;
@@ -784,7 +776,6 @@
     renderEditSubOptions(tx.mainCat, tx.subCat);
     renderEditThirdOptions(tx.mainCat, tx.subCat, tx.thirdCat);
     editAmount.value = tx.amount;
-    updateEditCalcPreview();
     editDesc.value = tx.desc || '';
     editTags.value = (tx.tags || []).join(', ');
     editModal.classList.remove('hidden');
@@ -810,6 +801,7 @@
 
   // ====== 计算器弹层 ======
   const calcPopup = $('calcPopup'), calcMask = $('calcMask'), calcExpr = $('calcExpr'), calcResult = $('calcResult');
+
   function openCalc() {
     calcExpr.textContent = amountInput.value || '0';
     updateCalcResult();
@@ -823,6 +815,7 @@
   amountInput.addEventListener('focus', openCalc);
   amountInput.addEventListener('click', openCalc);
   calcMask.addEventListener('click', closeCalc);
+
   document.querySelectorAll('.calc-popup .calc-btn').forEach(btn => {
     btn.addEventListener('mousedown', e => e.preventDefault());
     btn.addEventListener('click', () => {
@@ -834,23 +827,71 @@
       else if (k === 'OK') {
         const val = evaluateExpr(expr);
         if (val !== null && val > 0) {
-          amountInput.value = val; calcPreview.textContent = '= ' + formatMoney(val); closeCalc(); return;
+          amountInput.value = val;
+          closeCalc();
+          amountInput.blur();
+          return;
         } else { showToast('请输入有效金额'); return; }
       } else expr += k;
       calcExpr.textContent = expr || '0';
       updateCalcResult();
-      amountInput.value = (expr === '' ? '' : expr);
-      calcPreview.textContent = calcResult.textContent;
     });
   });
+
+  // 键盘输入
   document.addEventListener('keydown', e => {
     if (!calcPopup.classList.contains('show')) return;
-    if (e.key === 'Enter') {
+    const k = e.key;
+    let expr = calcExpr.textContent;
+
+    if (k === 'Enter') {
       e.preventDefault();
-      const val = evaluateExpr(calcExpr.textContent);
-      if (val !== null && val > 0) { amountInput.value = val; calcPreview.textContent = '= ' + formatMoney(val); closeCalc(); }
-    } else if (e.key === 'Escape') closeCalc();
+      const val = evaluateExpr(expr);
+      if (val !== null && val > 0) {
+        amountInput.value = val;
+        closeCalc();
+        amountInput.blur();
+      } else {
+        showToast('请输入有效金额');
+      }
+      return;
+    }
+    if (k === 'Escape') { e.preventDefault(); closeCalc(); return; }
+    if (k === 'Backspace') {
+      e.preventDefault();
+      if (expr === '0') expr = '';
+      expr = expr.slice(0, -1);
+      calcExpr.textContent = expr || '0';
+      updateCalcResult();
+      return;
+    }
+    if (/^[0-9]$/.test(k)) {
+      e.preventDefault();
+      if (expr === '0') expr = '';
+      expr += k;
+      calcExpr.textContent = expr;
+      updateCalcResult();
+      return;
+    }
+    if (k === '.') {
+      e.preventDefault();
+      if (expr === '0') expr = '';
+      expr += '.';
+      calcExpr.textContent = expr;
+      updateCalcResult();
+      return;
+    }
+    if (['+','-','*','/','(',')'].includes(k)) {
+      e.preventDefault();
+      if (expr === '0') expr = '';
+      const shown = k === '*' ? '×' : (k === '/' ? '÷' : k);
+      expr += shown;
+      calcExpr.textContent = expr;
+      updateCalcResult();
+      return;
+    }
   });
+
   document.addEventListener('click', e => {
     if (!calcPopup.classList.contains('show')) return;
     if (calcPopup.contains(e.target)) return;
