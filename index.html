@@ -35,7 +35,6 @@
   .field select { cursor:pointer; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237f8c9b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 1rem center; background-size:14px; }
   .field.hidden { display:none; }
   .calc-preview { font-size:.75rem; color:#2b7e5c; margin-top:.25rem; min-height:1em; font-weight:500; }
-  .calc-hint { font-size:.7rem; color:#b8c6d4; margin-top:.1rem; }
   .tag-input-wrap { display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; border:1px solid #dee6ed; border-radius:14px; padding:.4rem .6rem; background:#fff; min-height:46px; }
   .tag-input-wrap:focus-within { border-color:#b0c8dd; box-shadow:0 0 0 3px rgba(176,200,221,.2); }
   .tag-chip { background:#eef3f8; color:#4e5e6e; font-size:.8rem; padding:.25rem .6rem; border-radius:20px; display:inline-flex; align-items:center; gap:.3rem; }
@@ -104,7 +103,6 @@
   .modal-btn.ghost { background:#f2f5f9; color:#5f6f7e; }
   .modal-btn.ghost:hover { background:#e6ecf2; }
   .modal .hint { font-size:.75rem; color:#b8c6d4; margin-top:-.5rem; margin-bottom:1rem; }
-  /* ===== 计算器弹层 ===== */
   .calc-popup { position:absolute; z-index:50; background:#fff; border:1px solid #e6ecf2; border-radius:20px; box-shadow:0 12px 36px rgba(30,43,60,.12); padding:1rem; width:280px; display:none; animation:calcIn .18s ease-out; }
   .calc-popup.show { display:block; }
   @keyframes calcIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
@@ -175,7 +173,6 @@
           <label>金额 <span style="color:#b14b4b;">*</span></label>
           <input type="text" id="amountInput" placeholder="如 12+8-5" autocomplete="off">
           <div class="calc-preview" id="calcPreview"></div>
-          <div class="calc-hint">支持 + - × ÷ 和括号</div>
 
           <div class="calc-popup" id="calcPopup">
             <div class="calc-display">
@@ -427,7 +424,7 @@
   }
 
   function exportJSON() {
-    const data = { app:'支出记账', version:4, exportedAt:new Date().toISOString(), count:transactions.length, transactions };
+    const data = { app:'支出记账', version:5, exportedAt:new Date().toISOString(), count:transactions.length, transactions };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -466,6 +463,7 @@
   function getSubsOf(m) { return CATEGORIES[m]?.subs ? Object.keys(CATEGORIES[m].subs) : []; }
   function getThirdsOf(m, s) { return CATEGORIES[m]?.subs?.[s] || []; }
 
+  // ====== 新增表单的下拉 ======
   function renderMainOptions() {
     mainSelect.innerHTML = '';
     Object.keys(CATEGORIES).forEach(cat => {
@@ -500,6 +498,7 @@
     else { thirdField.classList.add('hidden'); }
   }
   function promptCustom(label) { const val = prompt(`请输入${label}名称：`); if (val && val.trim()) return val.trim(); return null; }
+
   mainSelect.addEventListener('change', () => {
     let mainCat = mainSelect.value;
     if (mainCat === CUSTOM_VALUE) {
@@ -524,6 +523,100 @@
       const custom = promptCustom('三级分类');
       if (custom) { const arr = CATEGORIES[mainCat].subs[subCat] || []; if (!arr.includes(custom)) arr.push(custom); CATEGORIES[mainCat].subs[subCat] = arr; renderThirdOptions(mainCat, subCat); thirdSelect.value = custom; }
       else thirdSelect.value = '';
+    }
+  });
+
+  // ====== 编辑弹窗的下拉 ======
+  function renderEditMainOptions(selected) {
+    editMain.innerHTML = '';
+    Object.keys(CATEGORIES).forEach(cat => {
+      const opt = document.createElement('option'); opt.value = cat; opt.textContent = `${CATEGORIES[cat].icon} ${cat}`;
+      editMain.appendChild(opt);
+    });
+    if (selected && !CATEGORIES[selected]) { const opt = document.createElement('option'); opt.value = selected; opt.textContent = '🏷️ ' + selected; editMain.appendChild(opt); }
+    const customOpt = document.createElement('option'); customOpt.value = CUSTOM_VALUE; customOpt.textContent = '➕ 自定义一级分类';
+    editMain.appendChild(customOpt);
+    editMain.value = selected || Object.keys(CATEGORIES)[0];
+  }
+  function renderEditSubOptions(mainCat, selected) {
+    editSub.innerHTML = '';
+    const noneOpt = document.createElement('option'); noneOpt.value = ''; noneOpt.textContent = '（不选二级）';
+    editSub.appendChild(noneOpt);
+    const subs = getSubsOf(mainCat);
+    subs.forEach(s => { const opt = document.createElement('option'); opt.value = s; opt.textContent = s; editSub.appendChild(opt); });
+    if (selected && !subs.includes(selected)) { const opt = document.createElement('option'); opt.value = selected; opt.textContent = selected; editSub.appendChild(opt); }
+    const customOpt = document.createElement('option'); customOpt.value = CUSTOM_VALUE; customOpt.textContent = '➕ 自定义二级分类';
+    editSub.appendChild(customOpt);
+    editSub.value = selected || '';
+  }
+  function renderEditThirdOptions(mainCat, subCat, selected) {
+    editThird.innerHTML = '';
+    const noneOpt = document.createElement('option'); noneOpt.value = ''; noneOpt.textContent = '（不选三级）';
+    editThird.appendChild(noneOpt);
+    const thirds = getThirdsOf(mainCat, subCat);
+    thirds.forEach(t => { const opt = document.createElement('option'); opt.value = t; opt.textContent = t; editThird.appendChild(opt); });
+    if (selected && !thirds.includes(selected)) { const opt = document.createElement('option'); opt.value = selected; opt.textContent = selected; editThird.appendChild(opt); }
+    const customOpt = document.createElement('option'); customOpt.value = CUSTOM_VALUE; customOpt.textContent = '➕ 自定义三级分类';
+    editThird.appendChild(customOpt);
+    editThird.value = selected || '';
+  }
+
+  editMain.addEventListener('change', () => {
+    let mainCat = editMain.value;
+    if (mainCat === CUSTOM_VALUE) {
+      const custom = prompt('请输入一级分类名称：');
+      if (custom && custom.trim()) {
+        const val = custom.trim();
+        if (!CATEGORIES[val]) CATEGORIES[val] = { icon:'🏷️', subs:{} };
+        renderEditMainOptions(val);
+        mainCat = val;
+      } else {
+        const tx = transactions.find(t => t.id === editingId);
+        mainCat = tx ? tx.mainCat : Object.keys(CATEGORIES)[0];
+        editMain.value = mainCat;
+      }
+    }
+    renderEditSubOptions(mainCat, '');
+    renderEditThirdOptions(mainCat, '', '');
+  });
+
+  editSub.addEventListener('change', () => {
+    const mainCat = editMain.value;
+    let subCat = editSub.value;
+    if (subCat === CUSTOM_VALUE) {
+      const custom = prompt('请输入二级分类名称：');
+      if (custom && custom.trim()) {
+        const val = custom.trim();
+        if (!CATEGORIES[mainCat].subs[val]) CATEGORIES[mainCat].subs[val] = [];
+        renderEditSubOptions(mainCat, val);
+        subCat = val;
+      } else {
+        renderEditSubOptions(mainCat, '');
+        subCat = '';
+      }
+    }
+    renderEditThirdOptions(mainCat, subCat === CUSTOM_VALUE ? '' : subCat, '');
+  });
+
+  editThird.addEventListener('change', () => {
+    const mainCat = editMain.value;
+    const subCat = editSub.value;
+    if (editThird.value === CUSTOM_VALUE) {
+      if (!subCat || subCat === CUSTOM_VALUE) {
+        alert('请先选择二级分类');
+        renderEditThirdOptions(mainCat, subCat, '');
+        return;
+      }
+      const custom = prompt('请输入三级分类名称：');
+      if (custom && custom.trim()) {
+        const val = custom.trim();
+        const arr = CATEGORIES[mainCat].subs[subCat] || [];
+        if (!arr.includes(val)) arr.push(val);
+        CATEGORIES[mainCat].subs[subCat] = arr;
+        renderEditThirdOptions(mainCat, subCat, val);
+      } else {
+        renderEditThirdOptions(mainCat, subCat, '');
+      }
     }
   });
 
@@ -675,41 +768,20 @@
     refreshTagFilters(); renderList(); renderMonthReport(); renderYearReport();
   }
 
-  // ============ 编辑弹窗 ============
+  // ====== 编辑弹窗打开 ======
   function openEdit(id) {
     const tx = transactions.find(t => t.id === id);
     if (!tx) return;
     editingId = id;
-    editMain.innerHTML = '';
-    Object.keys(CATEGORIES).forEach(cat => { const opt = document.createElement('option'); opt.value = cat; opt.textContent = `${CATEGORIES[cat].icon} ${cat}`; editMain.appendChild(opt); });
-    if (!CATEGORIES[tx.mainCat]) { const opt = document.createElement('option'); opt.value = tx.mainCat; opt.textContent = '🏷️ ' + tx.mainCat; editMain.appendChild(opt); }
-    editMain.value = tx.mainCat;
-    refreshEditSub(tx.mainCat, tx.subCat, tx.thirdCat);
+    renderEditMainOptions(tx.mainCat);
+    renderEditSubOptions(tx.mainCat, tx.subCat);
+    renderEditThirdOptions(tx.mainCat, tx.subCat, tx.thirdCat);
     editAmount.value = tx.amount;
     updateEditCalcPreview();
     editDesc.value = tx.desc || '';
     editTags.value = (tx.tags || []).join(', ');
     editModal.classList.remove('hidden');
   }
-  function refreshEditSub(mainCat, selectedSub, selectedThird) {
-    editSub.innerHTML = '';
-    const noneOpt = document.createElement('option'); noneOpt.value = ''; noneOpt.textContent = '（不选二级）'; editSub.appendChild(noneOpt);
-    getSubsOf(mainCat).forEach(s => { const opt = document.createElement('option'); opt.value = s; opt.textContent = s; editSub.appendChild(opt); });
-    if (selectedSub && !getSubsOf(mainCat).includes(selectedSub)) { const opt = document.createElement('option'); opt.value = selectedSub; opt.textContent = selectedSub; editSub.appendChild(opt); }
-    editSub.value = selectedSub || '';
-    refreshEditThird(mainCat, editSub.value, selectedThird);
-  }
-  function refreshEditThird(mainCat, subCat, selectedThird) {
-    editThird.innerHTML = '';
-    const noneOpt = document.createElement('option'); noneOpt.value = ''; noneOpt.textContent = '（不选三级）'; editThird.appendChild(noneOpt);
-    const thirds = getThirdsOf(mainCat, subCat);
-    thirds.forEach(t => { const opt = document.createElement('option'); opt.value = t; opt.textContent = t; editThird.appendChild(opt); });
-    if (selectedThird && !thirds.includes(selectedThird)) { const opt = document.createElement('option'); opt.value = selectedThird; opt.textContent = selectedThird; editThird.appendChild(opt); }
-    editThird.value = selectedThird || '';
-  }
-  editMain.addEventListener('change', () => refreshEditSub(editMain.value, '', ''));
-  editSub.addEventListener('change', () => refreshEditThird(editMain.value, editSub.value, ''));
-
   cancelEdit.addEventListener('click', () => { editModal.classList.add('hidden'); editingId = null; });
   saveEdit.addEventListener('click', async () => {
     if (!editingId) return;
@@ -729,7 +801,7 @@
     finally { saveEdit.disabled = false; }
   });
 
-  // ============ 可视化计算器 ============
+  // ====== 计算器弹层 ======
   const calcPopup = $('calcPopup'), calcMask = $('calcMask'), calcExpr = $('calcExpr'), calcResult = $('calcResult');
   function openCalc() {
     calcExpr.textContent = amountInput.value || '0';
@@ -779,7 +851,7 @@
     closeCalc();
   });
 
-  // ============ 登录 ============
+  // ====== 登录 ======
   function openLoginModal() { syncCodeInput.value = ''; loginModal.classList.remove('hidden'); setTimeout(() => syncCodeInput.focus(), 100); }
   function closeLoginModal() { loginModal.classList.add('hidden'); }
   cancelLogin.addEventListener('click', () => { closeLoginModal(); setSyncStatus('未连接（离线）', 'offline'); loadCache(); renderAll(); });
@@ -799,7 +871,7 @@
     currentUserId = null; transactions = []; setSyncStatus('未连接', ''); openLoginModal();
   });
 
-  // ============ 初始化 ============
+  // ====== 初始化 ======
   async function init() {
     supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     renderMainOptions();
